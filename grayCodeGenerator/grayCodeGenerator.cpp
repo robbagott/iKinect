@@ -9,7 +9,7 @@ int height = 1080;
 
 using namespace std;
 
-void createGC(int imageNumber) {
+void createVGC(int imageNumber) {
 
 	Bmp image(width, height);
 
@@ -24,7 +24,7 @@ void createGC(int imageNumber) {
 	bool drawWhite = true;
 	int borderCounter = 1;
  	
-	int widthUnit = 1920/( pow(2, imageNumber));
+	int widthUnit = width/( pow(2, imageNumber));
 	for (unsigned int i = 0; i < 1920; i++) {
 
 		//Handle changing of colors
@@ -50,7 +50,64 @@ void createGC(int imageNumber) {
 	}
 
 	stringstream ss;
-	ss << "graycode_" << imageNumber << ".bmp";
+	ss << "graycode_v" << imageNumber << ".bmp";
+	string filename = ss.str();
+
+	string errMsg = "image writing failed for " + filename;
+
+	if(!image.write(filename, errMsg))
+	{
+		cout << errMsg << endl;
+	}
+	else
+	{
+		cout << "Successfully wrote file: [" << filename << "]" << endl;
+	}
+
+}
+
+void createHGC(int imageNumber) {
+
+	Bmp image(width, height);
+
+	if (imageNumber <= 0) {
+		cout << "Invalid imageNumber input" << endl;
+		return;
+	}
+
+	Color white = Color(255,255,255);
+	Color black = Color(0,0,0);
+
+	bool drawWhite = true;
+	int borderCounter = 1;
+ 	
+	int widthUnit = height/( pow(2, imageNumber));
+	for (unsigned int i = 0; i < 1080; i++) {
+
+		//Handle changing of colors
+		if ((i % widthUnit) == 0 && i != 0) {
+			if (borderCounter > 0) {
+				drawWhite = !drawWhite;
+				borderCounter = 0;
+			}
+			else {
+				borderCounter++;
+			}
+		}
+
+		//Draw in a horizontal line
+		for (unsigned int j = 0; j < 1920; j++) {
+			if (drawWhite) {
+				image.setPixel(j, i, white);
+			}
+			else {
+				image.setPixel(j, i, black);
+			}
+		}
+	}
+
+	stringstream ss;
+	ss << "graycode_h" << imageNumber << ".bmp";
 	string filename = ss.str();
 
 	string errMsg = "image writing failed for " + filename;
@@ -84,7 +141,8 @@ int main(int argc, char** argv) {
 	}
 
 	for (unsigned int i = 1; i <= imageAmount; i++) {
-		createGC(i);
+		createVGC(i);
+		createHGC(i);
 	}
 
 	return 0;
