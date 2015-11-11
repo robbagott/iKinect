@@ -5,6 +5,7 @@ INCLUDES
 #include <iostream>
 #include <vector>
 #include <sstream>
+#include <fstream>
 #include <cmath>
 
 using namespace std;
@@ -30,13 +31,25 @@ enum Assignment {
 
 struct Pixel{
 	vector<Assignment> hAssigns;
-	vector<Assignment> vAssigns; 
+	vector<Assignment> vAssigns;
+
+	//Evolving range of precision over program lifespan
+	int projXLow;
+	int projXHi;
+	int projYLow;
+	int projYHi;
+
+	int projXAvg;
+	int projYAvg;
+
+	//final calculated depth
+	int depth;
 };
 
 //This stores the precision to which a pixel in the projected images matches up to a pixel in the taken images. 
 //This evolves as progressive images are processed. First, each recognized pixel in the taken image is separated into
 //two groups based on their color. On the next image, they are further classified. These classifications are stored here.
-vector<vector<Pixel> > pixelAssignments;
+vector<vector<Pixel> > pixels;
 
 /*********************************************************************************************
 FUNCTIONS
@@ -78,46 +91,124 @@ bool isGreen(int imageX, int imageY) {
 	}
 }
 
-void processHImage(int imageNum) {
+//Make pixel red/green assignments for gray-code images
+//isVert indicates if the gray-code for the given image is horizontal or vertical gray-code
+void processImage(int imageNum, bool isVert) {
 	//get image
 
 	//For each pixel in the image...
 	for (unsigned int i = 0; i < imageWidth; i++) {
 		for (unsigned int j = 0; j < imageHeight; j++) {
 			if (isRed(i, j)) {
-				pixelAssignments[i][j].hAssigns[imageNum] = Red;
+				if (isVert) {
+					pixels[i][j].vAssigns[imageNum] = Red;
+				}
+				else {
+					pixels[i][j].hAssigns[imageNum] = Red;
+				}
 			}
 			else if (isGreen(i, j)) {
-				pixelAssignments[i][j].hAssigns[imageNum] = Green;
+				if (isVert) {
+					pixels[i][j].vAssigns[imageNum] = Green;
+				}
+				else {
+					pixels[i][j].hAssigns[imageNum] = Green;
+				}
 			}
 			else {
-				pixelAssignments[i][j].hAssigns[imageNum] = Other;
+				if (isVert) {
+					pixels[i][j].vAssigns[imageNum] = Other;
+				}
+				else {
+					pixels[i][j].hAssigns[imageNum] = Other;
+				}
 			}
 		}
 	}
 }
 
-void processVImage(int imageNum) {
-	//get image
-
-	//For each pixel in the image...
-	for (unsigned int i = 0; i < imageWidth; i++) {
-		for (unsigned int j = 0; j < imageHeight; j++) {
-			if (isRed(i, j)) {
-				pixelAssignments[i][j].vAssigns[imageNum] = Red;
-			}
-			else if (isGreen(i, j)) {
-				pixelAssignments[i][j].vAssigns[imageNum] = Green;
-			}
-			else {
-				pixelAssignments[i][j].vAssigns[imageNum] = Other;
-			}
-		}
-	}
-}
-
+//Calculate where pixels in image correspond to in projection data
 void calcProjLocs() {
+	for (unsigned int i = 0; i < numImages; i++) {
 
+	}
+}
+
+void createDepthMap() {
+	//Triangulate points between position in projection image and position in captured images
+	//The following was provide by Joseph
+	/*
+	#include <iostream>
+	#include <opencv2/opencv.hpp>
+
+	using namespace cv;
+	using namespace std;
+
+	template<typename T> 
+	void compose_KRt(Mat &K, Mat &R, Mat &t, Mat &P)
+	{
+		P.create(3, 4, DataType<T>::type);
+
+		P.ptr<T>(0)[0] = R.ptr<T>(0)[0]; 
+		P.ptr<T>(0)[1] = R.ptr<T>(0)[1]; 
+		P.ptr<T>(0)[2] = R.ptr<T>(0)[2];
+		 
+		P.ptr<T>(1)[0] = R.ptr<T>(1)[0]; 
+		P.ptr<T>(1)[1] = R.ptr<T>(1)[1]; 
+		P.ptr<T>(1)[2] = R.ptr<T>(1)[2];
+		
+		P.ptr<T>(2)[0] = R.ptr<T>(2)[0]; 
+		P.ptr<T>(2)[1] = R.ptr<T>(2)[1]; 
+		P.ptr<T>(2)[2] = R.ptr<T>(2)[2];
+
+		P.ptr<T>(0)[3] = t.ptr<T>(0)[0];
+		P.ptr<T>(1)[3] = t.ptr<T>(1)[0]; 
+		P.ptr<T>(2)[3] = t.ptr<T>(2)[0];
+
+		P = K * P;
+	}
+
+	int main(void)
+	{
+		// Set reference camera P0 = [I|0]
+		Mat P0;
+		Mat K0; // intrinsic camera matrix computed from calibration
+		Mat R0 = Mat::eye(3, 3, DataType<float>::type);
+		Mat t0 = Mat::zeros(3, 1, DataType<float>::type);
+		compose_KRt<float>(K0, R0, t0, P0);
+
+		// Set relative camera P1 = [R|t]
+		Mat P1;	
+		Mat K1; // intrinsic camera matrix computed from calibration 
+		Mat R1; // rotation matrix computed from calibration
+		Mat t1; // translation matrix computed from calibration
+		compose_KRt<float>(K1, R1, t1, P1);
+
+		// Compute 3D world points
+		Mat X;
+		vector<Point2f> p0; // corresponding points in P0 view
+		vector<Point2f> p1; // corresponding points in P1 view
+		triangulatePoints(P0, P1, p0, p1, X); // X will be a 4xN matrix (in homogeneous coordinates)
+		
+		// Print 3D world points (converted from homogeneous coordinates)
+		for (int i = 0; i < X.cols; ++i)
+			cout 
+				<< "x:" << X.ptr<float>(0)[i] / X.ptr<float>(3)[i] 
+				<< "y:" << X.ptr<float>(1)[i] / X.ptr<float>(3)[i]
+				<< "z:" << X.ptr<float>(2)[i] / X.ptr<float>(3)[i] << endl;
+	}
+	*/
+}
+
+void outputToFile(string filename) {
+	fstream fs(filename.c_str(), std::fstream::in | std::fstream::out);
+	for (unsigned int i = 0; i < imageWidth; i++) {
+		for (unsigned int j = 0; j < imageHeight; j++) {
+			fs << pixels[i][j].depth << " ";
+		}
+		fs << endl;
+	}
+	fs.close();
 }
 
 /*********************************************************************************************
@@ -147,22 +238,28 @@ int main(int argc, char** argv) {
 	//cerr << "numImages: " << numImages << endl << "imageWidth: " << imageWidth << endl << "imageHeight: " << imageHeight << endl;
 
 	//Set up array of pixels and associated data
-	pixelAssignments.resize(imageWidth);
-	for (unsigned int i = 0; i < pixelAssignments.size(); i++) {
-		pixelAssignments[i].resize(imageHeight);
-		for (unsigned int j = 0; j < pixelAssignments[i].size(); j++) {
-			pixelAssignments[i][j].hAssigns.resize(numImages);
-			pixelAssignments[i][j].vAssigns.resize(numImages);
+	pixels.resize(imageWidth);
+	for (unsigned int i = 0; i < pixels.size(); i++) {
+		pixels[i].resize(imageHeight);
+		for (unsigned int j = 0; j < pixels[i].size(); j++) {
+			pixels[i][j].hAssigns.resize(numImages);
+			pixels[i][j].vAssigns.resize(numImages);
 		}
 	}
 
 	//Process the images in terms of assigning sequences of red/green to pixels
 	for (unsigned int i = 0; i < numImages; i++) {
-		processHImage(i);
-		processVImage(i);
+		processImage(i, true);
+		processImage(i, false);
 	}
 
 	//Calculate where in the projection image each of the recognized image pixels corresponds according to their red/green sequences
 	calcProjLocs();
+
+	//Triangulate the points
+	createDepthMap();
+
+	//Output depths ot a file;
+	//outputToFile("depthOutput.txt");
 	return 0;
 }
