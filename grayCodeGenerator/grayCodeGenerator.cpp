@@ -4,8 +4,8 @@
 #include <sstream>
 #include <cmath>
 
-int width = 1920;
-int height = 1080;
+int width = 1280;
+int height = 720;
 
 using namespace std;
 
@@ -18,14 +18,14 @@ void createVGC(int imageNumber) {
 		return;
 	}
 
-	Color white = Color(255,255,255);
-	Color black = Color(0,0,0);
+	Color white = Color(0, 255, 0);
+	Color black = Color(255, 0, 0);
 
 	bool drawWhite = true;
 	int borderCounter = 1;
  	
 	int widthUnit = width/( pow(2, imageNumber));
-	for (unsigned int i = 0; i < 1920; i++) {
+	for (unsigned int i = 0; i < width; i++) {
 
 		//Handle changing of colors
 		if ((i % widthUnit) == 0 && i != 0) {
@@ -39,7 +39,7 @@ void createVGC(int imageNumber) {
 		}
 
 		//Draw in a vertical line
-		for (unsigned int j = 0; j < 1080; j++) {
+		for (unsigned int j = 0; j < height; j++) {
 			if (drawWhite) {
 				image.setPixel(i, j, white);
 			}
@@ -75,14 +75,14 @@ void createHGC(int imageNumber) {
 		return;
 	}
 
-	Color white = Color(255,255,255);
-	Color black = Color(0,0,0);
+	Color white = Color(0, 255, 0);
+	Color black = Color(255, 0, 0);
 
 	bool drawWhite = true;
 	int borderCounter = 1;
  	
 	int widthUnit = height/( pow(2, imageNumber));
-	for (unsigned int i = 0; i < 1080; i++) {
+	for (unsigned int i = 0; i < height; i++) {
 
 		//Handle changing of colors
 		if ((i % widthUnit) == 0 && i != 0) {
@@ -96,7 +96,7 @@ void createHGC(int imageNumber) {
 		}
 
 		//Draw in a horizontal line
-		for (unsigned int j = 0; j < 1920; j++) {
+		for (unsigned int j = 0; j < width; j++) {
 			if (drawWhite) {
 				image.setPixel(j, i, white);
 			}
