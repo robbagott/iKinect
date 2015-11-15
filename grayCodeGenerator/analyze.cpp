@@ -7,8 +7,10 @@ INCLUDES
 #include <sstream>
 #include <fstream>
 #include <cmath>
+#include <opencv2/opencv.hpp>
 
 using namespace std;
+using namespace cv;
 
 /*********************************************************************************************
 CONSTANTS AND GLOBAL VARIABLES
@@ -55,13 +57,14 @@ vector<vector<Pixel> > pixels;
 FUNCTIONS
 *********************************************************************************************/
 
-bool isRed(int imageX, int imageY) {
+bool isRed(int imgx, int imgy, const Mat& img) {
 	//d=sqrt((r2-r1)^2+(g2-g1)^2+(b2-b1)^2)
 	//p=d/sqrt((255)^2+(255)^2+(255)^2)
 	//Get pixel red, green, blue
-	float r = 0;
-	float g = 0;
-	float b = 0;
+	Vec3b px = img.at<float>(imgy, imgx);
+	float r = px[2];
+	float g = px[1];
+	float b = px[0];
 	float distance = sqrt( pow((255-r),2) + pow((0-g),2) + pow((0-b),2) );
 	float percentage = distance/442;
 
@@ -73,13 +76,11 @@ bool isRed(int imageX, int imageY) {
 	}
 }
 
-bool isGreen(int imageX, int imageY) {
-	//d=sqrt((r2-r1)^2+(g2-g1)^2+(b2-b1)^2)
-	//p=d/sqrt((255)^2+(255)^2+(255)^2)
-	//Get pixel red, green, blue
-	float r = 0;
-	float g = 0;
-	float b = 0;
+bool isGreen(int imgx, int imgy, const Mat& img) {
+	Vec3b px = img.at<float>(imgy, imgx);
+	float r = px[2];
+	float g = px[1];
+	float b = px[0];
 	float distance = sqrt( pow((0-r),2) + pow((255-g),2) + pow((0-b),2) );
 	float percentage = distance/442;
 
@@ -95,11 +96,33 @@ bool isGreen(int imageX, int imageY) {
 //isVert indicates if the gray-code for the given image is horizontal or vertical gray-code
 void processImage(int imageNum, bool isVert) {
 	//get image
+	string filename = "img_";
+	if (isVert) {
+		filename +="1_";
+	}
+	else {
+		filename += "0_";
+	}
+	stringstream ss;
+	ss << imageNum;
+	filename += ss.str();
+	ss.clear();
+	filename += ".png";
+	cerr << filename << endl;
+	Mat img = imread(filename, CV_LOAD_IMAGE_COLOR);
+	
+	if (img.data == NULL) {
+		cerr << "Did not find img data" << endl;
+		exit(1);
+	}
 
 	//For each pixel in the image...
-	for (unsigned int i = 0; i < imageWidth; i++) {
-		for (unsigned int j = 0; j < imageHeight; j++) {
-			if (isRed(i, j)) {
+	for (unsigned int i = 0; i < img.rows; i++) {
+		cerr << "Processing row " << i << endl;
+
+		for (unsigned int j = 0; j < img.cols; j++) {
+			cerr << j << endl;
+			if (isRed(j, i, img)) {
 				if (isVert) {
 					pixels[i][j].vAssigns[imageNum] = Red;
 				}
@@ -107,7 +130,7 @@ void processImage(int imageNum, bool isVert) {
 					pixels[i][j].hAssigns[imageNum] = Red;
 				}
 			}
-			else if (isGreen(i, j)) {
+			else if (isGreen(j, i, img)) {
 				if (isVert) {
 					pixels[i][j].vAssigns[imageNum] = Green;
 				}
@@ -138,12 +161,6 @@ void createDepthMap() {
 	//Triangulate points between position in projection image and position in captured images
 	//The following was provide by Joseph
 	/*
-	#include <iostream>
-	#include <opencv2/opencv.hpp>
-
-	using namespace cv;
-	using namespace std;
-
 	template<typename T> 
 	void compose_KRt(Mat &K, Mat &R, Mat &t, Mat &P)
 	{
@@ -221,7 +238,7 @@ int main(int argc, char** argv) {
 	if (argc != 4) {
 		cerr << "Expected arguments: " << endl;
 		cerr << "number of images per orientation" << endl;
-		cerr << "image widht in pixels" << endl;
+		cerr << "image width in pixels" << endl;
 		cerr << "image height in pixels" << endl;
 		return -1;
 	}
@@ -235,8 +252,9 @@ int main(int argc, char** argv) {
 	ss << argv[3];
 	ss >> imageHeight;
 	ss.clear();
-	//cerr << "numImages: " << numImages << endl << "imageWidth: " << imageWidth << endl << "imageHeight: " << imageHeight << endl;
+	cerr << "numImages: " << numImages << endl << "imageWidth: " << imageWidth << endl << "imageHeight: " << imageHeight << endl;
 
+	cerr << "creating vector." << endl;
 	//Set up array of pixels and associated data
 	pixels.resize(imageWidth);
 	for (unsigned int i = 0; i < pixels.size(); i++) {
@@ -249,10 +267,14 @@ int main(int argc, char** argv) {
 
 	//Process the images in terms of assigning sequences of red/green to pixels
 	for (unsigned int i = 0; i < numImages; i++) {
+		cerr << "Processing set " << i << " of images" << endl;
 		processImage(i, true);
+		cerr << "Finished processing vertical image" << endl;
 		processImage(i, false);
+		cerr << "Finished processing horizontal image" << endl;
 	}
 
+	cerr << "Made it to the end of processing" << endl;
 	//Calculate where in the projection image each of the recognized image pixels corresponds according to their red/green sequences
 	calcProjLocs();
 
