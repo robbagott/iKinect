@@ -57,14 +57,14 @@ vector<vector<Pixel> > pixels;
 FUNCTIONS
 *********************************************************************************************/
 
-bool isRed(int imgx, int imgy, const Mat& img) {
+bool isRed(int row, int col, const Mat& img) {
 	//d=sqrt((r2-r1)^2+(g2-g1)^2+(b2-b1)^2)
 	//p=d/sqrt((255)^2+(255)^2+(255)^2)
 	//Get pixel red, green, blue
-	Vec3b px = img.at<float>(imgy, imgx);
-	float r = px[2];
-	float g = px[1];
-	float b = px[0];
+	Vec3b px = img.at<Vec3b>(row, col);
+	float r = px.val[2];
+	float g = px.val[1];
+	float b = px.val[0];
 	float distance = sqrt( pow((255-r),2) + pow((0-g),2) + pow((0-b),2) );
 	float percentage = distance/442;
 
@@ -76,11 +76,11 @@ bool isRed(int imgx, int imgy, const Mat& img) {
 	}
 }
 
-bool isGreen(int imgx, int imgy, const Mat& img) {
-	Vec3b px = img.at<float>(imgy, imgx);
-	float r = px[2];
-	float g = px[1];
-	float b = px[0];
+bool isGreen(int row, int col, const Mat& img) {
+	Vec3b px = img.at<Vec3b>(row, col);
+	float r = px.val[2];
+	float g = px.val[1];
+	float b = px.val[0];
 	float distance = sqrt( pow((0-r),2) + pow((255-g),2) + pow((0-b),2) );
 	float percentage = distance/442;
 
@@ -108,8 +108,8 @@ void processImage(int imageNum, bool isVert) {
 	filename += ss.str();
 	ss.clear();
 	filename += ".png";
-	cerr << filename << endl;
-	Mat img = imread(filename, CV_LOAD_IMAGE_COLOR);
+	cerr << "Processing " << filename << endl;
+	Mat img = imread(filename);
 	
 	if (img.data == NULL) {
 		cerr << "Did not find img data" << endl;
@@ -117,33 +117,31 @@ void processImage(int imageNum, bool isVert) {
 	}
 
 	//For each pixel in the image...
-	for (unsigned int i = 0; i < img.rows; i++) {
-		cerr << "Processing row " << i << endl;
+	for (unsigned int row = 0; row < img.rows; row++) {
 
-		for (unsigned int j = 0; j < img.cols; j++) {
-			cerr << j << endl;
-			if (isRed(j, i, img)) {
+		for (unsigned int col = 0; col < img.cols; col++) {
+			if (isRed(row, col, img)) {
 				if (isVert) {
-					pixels[i][j].vAssigns[imageNum] = Red;
+					pixels[col][row].vAssigns[imageNum] = Red;
 				}
 				else {
-					pixels[i][j].hAssigns[imageNum] = Red;
+					pixels[col][row].hAssigns[imageNum] = Red;
 				}
 			}
-			else if (isGreen(j, i, img)) {
+			else if (isGreen(row, col, img)) {
 				if (isVert) {
-					pixels[i][j].vAssigns[imageNum] = Green;
+					pixels[col][row].vAssigns[imageNum] = Green;
 				}
 				else {
-					pixels[i][j].hAssigns[imageNum] = Green;
+					pixels[col][row].hAssigns[imageNum] = Green;
 				}
 			}
 			else {
 				if (isVert) {
-					pixels[i][j].vAssigns[imageNum] = Other;
+					pixels[col][row].vAssigns[imageNum] = Other;
 				}
 				else {
-					pixels[i][j].hAssigns[imageNum] = Other;
+					pixels[col][row].hAssigns[imageNum] = Other;
 				}
 			}
 		}
@@ -218,14 +216,66 @@ void createDepthMap() {
 }
 
 void outputToFile(string filename) {
-	fstream fs(filename.c_str(), std::fstream::in | std::fstream::out);
-	for (unsigned int i = 0; i < imageWidth; i++) {
-		for (unsigned int j = 0; j < imageHeight; j++) {
-			fs << pixels[i][j].depth << " ";
+	//fstream fs(filename.c_str(), std::fstream::in | std::fstream::out);
+	//for (unsigned int i = 0; i < imageWidth; i++) {
+	//	for (unsigned int j = 0; j < imageHeight; j++) {
+	//		fs << pixels[i][j].depth << " ";
+	//	}
+	//	fs << endl;
+	//}
+	//fs.close();
+}
+
+void outputProcessing(bool isVert, int imageNum) {
+	string filename = "procout_";
+	if (isVert) {
+		filename +="1_";
+	}
+	else {
+		filename += "0_";
+	}
+	stringstream ss;
+	ss << imageNum;
+	filename += ss.str();
+	ss.clear();
+	filename += ".txt";
+
+	ofstream fs(filename.c_str());
+
+	for (unsigned int col = 0; col < pixels.size(); col++) {
+		for (unsigned int row = 0; row < pixels[col].size(); row++) {
+			if (isVert) {
+				switch (pixels[col][row].vAssigns[imageNum]) {
+					case Red:
+						fs << 0 << " ";
+						break;
+					case Green:
+						fs << 1 << " ";
+						break;
+					default:
+						fs << 2 << " ";
+						break;
+				}
+			} 
+			else {
+				switch (pixels[col][row].hAssigns[imageNum]) {
+					case Red:
+						fs << 0 << " ";
+						break;
+					case Green:
+						fs << 1 << " ";
+						break;
+					default:
+						fs << 2 << " ";
+						break;
+				}
+			}
 		}
 		fs << endl;
 	}
 	fs.close();
+
+	cerr << "output processing" << endl;
 }
 
 /*********************************************************************************************
@@ -282,6 +332,8 @@ int main(int argc, char** argv) {
 	createDepthMap();
 
 	//Output depths ot a file;
-	//outputToFile("depthOutput.txt");
+	outputToFile("depthOutput.txt");
+
+	outputProcessing(true, 0);
 	return 0;
 }
