@@ -8,6 +8,7 @@ INCLUDES
 #include <fstream>
 #include <cmath>
 #include <opencv2/opencv.hpp>
+#include <string>
 
 using namespace std;
 using namespace cv;
@@ -17,9 +18,10 @@ CONSTANTS AND GLOBAL VARIABLES
 *********************************************************************************************/
 
 //percentage color distance for a pixel to not be classified as a projected color (Red or Green)
-const float colorThreshold = 0.5;
+const float colorThreshold = 0.45;
 
-int numImages = 0;
+int numImagesHor = 0;
+int numImagesVert = 0;
 int imageWidth = 0;
 int imageHeight = 0;
 
@@ -42,9 +44,6 @@ struct Pixel{
 	float yHi;
 	int xEst;
 	int yEst;
-
-	//final calculated depth
-	int depth;
 
 	bool isValid;
 };
@@ -118,9 +117,9 @@ void processImage(int imageNum, bool isVert) {
 	}
 
 	//For each pixel in the image...
-	for (unsigned int row = 0; row < img.rows; row++) {
+	for (unsigned int row = 0; row < imageHeight; row++) {
 
-		for (unsigned int col = 0; col < img.cols; col++) {
+		for (unsigned int col = 0; col < imageWidth; col++) {
 			if (isRed(row, col, img)) {
 				if (isVert) {
 					pixels[row][col].vAssigns[imageNum] = Red;
@@ -156,7 +155,7 @@ void calcCorrespondence() {
 			bool greenIsLeft = true;
 			bool greenIsBot = true;
 			bool otherColor = false;
-			for (unsigned int imageNum = 0; imageNum < numImages; imageNum++) {
+			for (unsigned int imageNum = 0; imageNum < numImagesVert; imageNum++) {
 				if (otherColor) {
 					break;
 				}
@@ -181,6 +180,12 @@ void calcCorrespondence() {
 				default: //Color is classified as other...
 					otherColor = true;
 					pixels[row][col].isValid = false;
+					break;
+				}
+				
+			}
+			for (unsigned int imageNum = 0; imageNum < numImagesHor; imageNum++) {
+				if (otherColor) {
 					break;
 				}
 				switch (pixels[row][col].hAssigns[imageNum]) {
@@ -219,78 +224,239 @@ void calcCorrespondence() {
 	}
 }
 
-void createDepthMap() {
-	//Triangulate points between position in projection image and position in captured images
-	//The following was provide by Joseph
-	/*
-	template<typename T> 
-	void compose_KRt(Mat &K, Mat &R, Mat &t, Mat &P)
-	{
-		P.create(3, 4, DataType<T>::type);
+template<typename T> 
+void compose_KRt(Mat &K, Mat &R, Mat &t, Mat &P)
+{
+	Mat P_Temp;
+	P_Temp.create(3, 4, DataType<T>::type);
 
-		P.ptr<T>(0)[0] = R.ptr<T>(0)[0]; 
-		P.ptr<T>(0)[1] = R.ptr<T>(0)[1]; 
-		P.ptr<T>(0)[2] = R.ptr<T>(0)[2];
-		 
-		P.ptr<T>(1)[0] = R.ptr<T>(1)[0]; 
-		P.ptr<T>(1)[1] = R.ptr<T>(1)[1]; 
-		P.ptr<T>(1)[2] = R.ptr<T>(1)[2];
-		
-		P.ptr<T>(2)[0] = R.ptr<T>(2)[0]; 
-		P.ptr<T>(2)[1] = R.ptr<T>(2)[1]; 
-		P.ptr<T>(2)[2] = R.ptr<T>(2)[2];
+	P.create(3, 4, DataType<T>::type);
 
-		P.ptr<T>(0)[3] = t.ptr<T>(0)[0];
-		P.ptr<T>(1)[3] = t.ptr<T>(1)[0]; 
-		P.ptr<T>(2)[3] = t.ptr<T>(2)[0];
+	P_Temp.ptr<T>(0)[0] = R.ptr<T>(0)[0]; 
+	P_Temp.ptr<T>(0)[1] = R.ptr<T>(0)[1]; 
+	P_Temp.ptr<T>(0)[2] = R.ptr<T>(0)[2];
 
-		P = K * P;
-	}
+	P_Temp.ptr<T>(1)[0] = R.ptr<T>(1)[0]; 
+	P_Temp.ptr<T>(1)[1] = R.ptr<T>(1)[1]; 
+	P_Temp.ptr<T>(1)[2] = R.ptr<T>(1)[2];
 
-	int main(void)
-	{
-		// Set reference camera P0 = [I|0]
-		Mat P0;
-		Mat K0; // intrinsic camera matrix computed from calibration
-		Mat R0 = Mat::eye(3, 3, DataType<float>::type);
-		Mat t0 = Mat::zeros(3, 1, DataType<float>::type);
-		compose_KRt<float>(K0, R0, t0, P0);
+	P_Temp.ptr<T>(2)[0] = R.ptr<T>(2)[0]; 
+	P_Temp.ptr<T>(2)[1] = R.ptr<T>(2)[1]; 
+	P_Temp.ptr<T>(2)[2] = R.ptr<T>(2)[2];
 
-		// Set relative camera P1 = [R|t]
-		Mat P1;	
-		Mat K1; // intrinsic camera matrix computed from calibration 
-		Mat R1; // rotation matrix computed from calibration
-		Mat t1; // translation matrix computed from calibration
-		compose_KRt<float>(K1, R1, t1, P1);
+	P_Temp.ptr<T>(0)[3] = t.ptr<T>(0)[0];
+	P_Temp.ptr<T>(1)[3] = t.ptr<T>(1)[0]; 
+	P_Temp.ptr<T>(2)[3] = t.ptr<T>(2)[0];
 
-		// Compute 3D world points
-		Mat X;
-		vector<Point2f> p0; // corresponding points in P0 view
-		vector<Point2f> p1; // corresponding points in P1 view
-		triangulatePoints(P0, P1, p0, p1, X); // X will be a 4xN matrix (in homogeneous coordinates)
-		
-		// Print 3D world points (converted from homogeneous coordinates)
-		for (int i = 0; i < X.cols; ++i)
-			cout 
-				<< "x:" << X.ptr<float>(0)[i] / X.ptr<float>(3)[i] 
-				<< "y:" << X.ptr<float>(1)[i] / X.ptr<float>(3)[i]
-				<< "z:" << X.ptr<float>(2)[i] / X.ptr<float>(3)[i] << endl;
-	}
-	*/
+	P = K * P_Temp;
 }
 
-void outputToFile(string filename) {
-	//fstream fs(filename.c_str(), std::fstream::in | std::fstream::out);
-	//for (unsigned int i = 0; i < imageWidth; i++) {
-	//	for (unsigned int j = 0; j < imageHeight; j++) {
-	//		fs << pixels[i][j].depth << " ";
-	//	}
-	//	fs << endl;
-	//}
-	//fs.close();
+void outputDepth(string filename, const Mat& X) {
+	cerr << "Outputting Depth..." << endl;
+	cerr << "to " << filename << endl;
+	ofstream ofs(filename.c_str(), ofstream::out);
+	for (unsigned int i = 0; i < X.cols; i++) {
+		ofs << X.ptr<float>(0)[i] / X.ptr<float>(3)[i] << " "
+			<< X.ptr<float>(1)[i] / X.ptr<float>(3)[i] << " "
+			<< X.ptr<float>(2)[i] / X.ptr<float>(3)[i]<< endl;
+	}
+	ofs.close();
+}
+
+void createDepthMap() {
+	//Triangulate points between position in projection image and position in captured images
+	cerr << "Calibrating..." << endl;
+
+	// Set reference camera P0 = [I|0]
+	Mat P0(3, 4, DataType<float>::type);
+	/*
+	P0.ptr<float>(0)[0] = 2605.7;
+	P0.ptr<float>(0)[1] = 0;
+	P0.ptr<float>(0)[2] = 1318.3;
+	P0.ptr<float>(0)[3] = 0;
+	P0.ptr<float>(1)[0] = 0;
+	P0.ptr<float>(1)[1] = 2602.7;
+	P0.ptr<float>(1)[2] = 963;
+	P0.ptr<float>(1)[3] = 0;
+	P0.ptr<float>(2)[0] = 0;
+	P0.ptr<float>(2)[1] = 0;
+	P0.ptr<float>(2)[2] = 1;
+	P0.ptr<float>(2)[3] = 0;
+	*/
+
+	Mat K0(3, 3, DataType<float>::type);
+	
+	K0.ptr<float>(0)[0] = 1296.8;
+	K0.ptr<float>(0)[1] = 0;
+	K0.ptr<float>(0)[2] = 639.7;
+	K0.ptr<float>(1)[0] = 0;
+	K0.ptr<float>(1)[1] = 1297.6;
+	K0.ptr<float>(1)[2] = 354.1;
+	K0.ptr<float>(2)[0] = 0;
+	K0.ptr<float>(2)[1] = 0;
+	K0.ptr<float>(2)[2] = 1;
+	
+	/*
+	K0.ptr<float>(0)[0] = 1;
+	K0.ptr<float>(0)[1] = 0;
+	K0.ptr<float>(0)[2] = 0;
+	K0.ptr<float>(1)[0] = 0;
+	K0.ptr<float>(1)[1] = 1;
+	K0.ptr<float>(1)[2] = 0;
+	K0.ptr<float>(2)[0] = 0;
+	K0.ptr<float>(2)[1] = 0;
+	K0.ptr<float>(2)[2] = 1;
+	*/
+
+	Mat R0(3, 3, DataType<float>::type);
+	R0.ptr<float>(0)[0] = 1;
+	R0.ptr<float>(0)[1] = 0;
+	R0.ptr<float>(0)[2] = 0;
+	R0.ptr<float>(1)[0] = 0;
+	R0.ptr<float>(1)[1] = 1;
+	R0.ptr<float>(1)[2] = 0;
+	R0.ptr<float>(2)[0] = 0;
+	R0.ptr<float>(2)[1] = 0;
+	R0.ptr<float>(2)[2] = 1;
+
+	Mat t0(3, 1, DataType<float>::type);
+	t0.ptr<float>(0)[0] = 0;
+	t0.ptr<float>(1)[0] = 0;
+	t0.ptr<float>(2)[0] = 0;
+
+	//sets P0 to appropriate pose based on K0, R0, and t0
+	compose_KRt<float>(K0, R0, t0, P0);
+
+	// Set relative camera P1 = [R|t]
+	Mat P1(3, 4, DataType<float>::type);
+	/*
+	P1.ptr<float>(0)[0] = 3899.1;
+	P1.ptr<float>(0)[1] = -313.8388;
+	P1.ptr<float>(0)[2] = 1548.5;
+	P1.ptr<float>(0)[3] = 273020;
+	P1.ptr<float>(1)[0] = 26.8734;
+	P1.ptr<float>(1)[1] = 2971.9;
+	P1.ptr<float>(1)[2] = 904.0124;
+	P1.ptr<float>(1)[3] = 288210;
+	P1.ptr<float>(2)[0] = -0.0390;
+	P1.ptr<float>(2)[1] = -0.1646;
+	P1.ptr<float>(2)[2] = 0.9856;
+	P1.ptr<float>(2)[3] = -212.6413;
+	*/
+
+	Mat K1(3, 3, DataType<float>::type);
+	K1.ptr<float>(0)[0] = 2105.4;
+	K1.ptr<float>(0)[1] = 0;
+	K1.ptr<float>(0)[2] = 730.3;
+	K1.ptr<float>(1)[0] = 0;
+	K1.ptr<float>(1)[1] = 2098.2;
+	K1.ptr<float>(1)[2] = 60.4;
+	K1.ptr<float>(2)[0] = 0;
+	K1.ptr<float>(2)[1] = 0;
+	K1.ptr<float>(2)[2] = 1;
+
+	/*
+	K1.ptr<float>(0)[0] = 7147.2;
+	K1.ptr<float>(0)[1] = 0;
+	K1.ptr<float>(0)[2] = 1938.8;
+	K1.ptr<float>(1)[0] = 0;
+	K1.ptr<float>(1)[1] = 7158.3;
+	K1.ptr<float>(1)[2] = 943.9;
+	K1.ptr<float>(2)[0] = 0;
+	K1.ptr<float>(2)[1] = 0;
+	K1.ptr<float>(2)[2] = 1;
+	
+	
+	K1.ptr<float>(0)[0] = 1;
+	K1.ptr<float>(0)[1] = 0;
+	K1.ptr<float>(0)[2] = 0;
+	K1.ptr<float>(1)[0] = 0;
+	K1.ptr<float>(1)[1] = 1;
+	K1.ptr<float>(1)[2] = 0;
+	K1.ptr<float>(2)[0] = 0;
+	K1.ptr<float>(2)[1] = 0;
+	K1.ptr<float>(2)[2] = 1;
+	*/
+
+	Mat R1(3, 3, DataType<float>::type);
+	R1.ptr<float>(0)[0] = 0.9956;
+	R1.ptr<float>(0)[1] = -0.0361;
+	R1.ptr<float>(0)[2] = -0.0864;
+	R1.ptr<float>(1)[0] = 0.0333;
+	R1.ptr<float>(1)[1] = 0.9988;
+	R1.ptr<float>(1)[2] = -0.0346;
+	R1.ptr<float>(2)[0] = 0.0876;
+	R1.ptr<float>(2)[1] = 0.0315;
+	R1.ptr<float>(2)[2] = 0.9957;
+	/*
+	R1.ptr<float>(0)[0] = 0.9941;
+	R1.ptr<float>(0)[1] = -0.0294;
+	R1.ptr<float>(0)[2] = 0.1043;
+	R1.ptr<float>(1)[0] = 0.0085;
+	R1.ptr<float>(1)[1] = 0.9807;
+	R1.ptr<float>(1)[2] = 0.1953;
+	R1.ptr<float>(2)[0] = -0.1080;
+	R1.ptr<float>(2)[1] = -0.1933;
+	R1.ptr<float>(2)[2] = 0.9752;
+	*/
+	Mat t1(3, 1, DataType<float>::type);
+	t1.ptr<float>(0)[0] = 104.2324;
+	t1.ptr<float>(1)[0] = 38.1896;
+	t1.ptr<float>(2)[0] = 27.2477;
+	/*
+	t1.ptr<float>(0)[0] = 76.7382;
+	t1.ptr<float>(1)[0] = -31.3015;
+	t1.ptr<float>(2)[0] = 48.0273;
+	*/
+	compose_KRt<float>(K1, R1, t1, P1);
+
+	// Compute 3D world points
+	cerr << "Populating vectors..." << endl;
+	vector<Point2f> p0; // corresponding points in P0 view
+	vector<Point2f> p1; // corresponding points in P1 view
+	for (unsigned int row = 0; row < imageHeight; row++) {
+		for (unsigned int col = 0; col < imageWidth; col++) {	
+			if (pixels[row][col].isValid) {
+				p0.push_back(Point2f(row, col));
+				p1.push_back(Point2f(pixels[row][col].yEst, pixels[row][col].xEst));	
+			}
+		}
+	}
+	//outputting points 
+	//ofstream fs(filename.c_str());
+	//cerr << "Amount of valid points: " << p0.size() << " " << p1.size() << endl;
+	
+	/*
+	Mat mp0(2, p0.size(), DataType<float>::type);
+	for (int i = 0; i < p0.size(); i++) {
+		mp0.ptr<float>(0)[i] = p0[i].x;
+		mp0.ptr<float>(1)[i] = p0[i].y;
+	}
+	Mat mp1(2, p1.size(), DataType<float>::type);
+	for (int i = 0; i < p0.size(); i++) {
+		mp1.ptr<float>(0)[i] = p1[i].x;
+		mp1.ptr<float>(1)[i] = p1[i].y;
+	}
+	*/
+	Mat X;
+	cerr << "Triangulating..." << endl;
+	triangulatePoints(P0, P1, p0, p1, X); // X will be a 4xN matrix (in homogeneous coordinates)
+	
+	//output to new file
+	fstream configfs((string("config.txt")).c_str(), ios_base::in | ios_base::out);
+	int currentIndex;
+	configfs >> currentIndex;
+	cerr << "current index: " << currentIndex << endl;
+	configfs.seekg(0, std::ios::beg);
+	configfs << ++currentIndex;
+	stringstream indexStream;
+	indexStream << currentIndex;
+	cerr << string("depth_output_") + indexStream.str() + string(".txt") << endl;
+	outputDepth(string("saved_data/depth_output_") + indexStream.str() + string(".txt"), X);
 }
 
 void outputProcessing(bool isVert, int imageNum) {
+	cerr << "Outputting Processing sample..." << endl;
 	string filename = "procout_";
 	if (isVert) {
 		filename +="1_";
@@ -338,11 +504,10 @@ void outputProcessing(bool isVert, int imageNum) {
 		fs << endl;
 	}
 	fs.close();
-
-	cerr << "output processing" << endl;
 }
 
 void outputCorrespondence() {
+	cerr << "Outputting  correspondence..." << endl;
 	ofstream fs("correspondence.txt");
 	for (unsigned int row = 0; row < imageHeight; row++) {
 		for (unsigned int col = 0; col < imageWidth; col++) {
@@ -351,15 +516,6 @@ void outputCorrespondence() {
 		fs << endl;
 	}
 	fs.close();
-
-	ofstream dfs("depth.txt");
-	for (unsigned int row = 0; row < imageHeight; row++) {
-		for (unsigned int col = 0; col < imageWidth; col++) {
-			dfs << row<< " ";
-		}
-		dfs << endl;
-	}
-	dfs.close();
 }
 
 /*********************************************************************************************
@@ -369,33 +525,38 @@ MAIN
 int main(int argc, char** argv) {
 
 	//Set variables from arguments
-	if (argc != 4) {
+	if (argc != 5) {
 		cerr << "Expected arguments: " << endl;
-		cerr << "number of images per orientation" << endl;
+		cerr << "number of images for horizontal stripes" << endl;
+		cerr << "number of images for vertical stripes" << endl;
 		cerr << "image width in pixels" << endl;
 		cerr << "image height in pixels" << endl;
 		return -1;
 	}
 	stringstream ss;
 	ss << argv[1];
-	ss >> numImages;
+	ss >> numImagesHor;
 	ss.clear();
 	ss << argv[2];
-	ss >> imageWidth;
+	ss >> numImagesVert;
 	ss.clear();
 	ss << argv[3];
+	ss >> imageWidth;
+	ss.clear();
+	ss << argv[4];
 	ss >> imageHeight;
 	ss.clear();
-	cerr << "numImages: " << numImages << endl << "imageWidth: " << imageWidth << endl << "imageHeight: " << imageHeight << endl;
+	cerr << "number of horizontal images: " << numImagesHor << endl << "number of vertical images: " 
+		<< numImagesVert << endl << "imageWidth: " << imageWidth << endl << "imageHeight: " << imageHeight << endl;
 
 	cerr << "creating vector" << endl;
 	//Set up array of pixels and associated data
-	pixels = new Pixel*;
+	pixels = new Pixel*[imageHeight];
 	for (unsigned int row = 0; row < imageHeight; row++) {
 		pixels[row] = new Pixel[imageWidth];
 		for (unsigned int col = 0; col < imageWidth; col++) {
-			pixels[row][col].hAssigns.resize(numImages);
-			pixels[row][col].vAssigns.resize(numImages);
+			pixels[row][col].hAssigns.resize(numImagesHor);
+			pixels[row][col].vAssigns.resize(numImagesVert);
 			pixels[row][col].isValid = true;
 			pixels[row][col].xLow = 0;
 			pixels[row][col].xHi = imageWidth-1;
@@ -405,24 +566,22 @@ int main(int argc, char** argv) {
 	}
 
 	//Process the images in terms of assigning sequences of red/green to pixels
-	for (unsigned int i = 0; i < numImages; i++) {
-		cerr << "Processing set " << i << " of images" << endl;
-		processImage(i, true);
-		cerr << "Finished processing vertical image" << endl;
+	for (unsigned int i = 0; i < numImagesHor; i++) {
+		cerr << "Processing horizontal image" << endl;
 		processImage(i, false);
-		cerr << "Finished processing horizontal image" << endl;
+	}
+	for (unsigned int i = 0; i < numImagesVert; i++) {
+		cerr << "Processing vertical image" << endl;
+		processImage(i, true);
 	}
 
 	cerr << "Made it to the end of processing" << endl;
 	//Calculate where in the projection image each of the recognized image pixels corresponds according to their red/green sequences
 	calcCorrespondence();
 
-	//Triangulate the points
+	//Triangulate the points and output
 	createDepthMap();
-
-	//Output depths ot a file;
-	outputToFile("depthOutput.txt");
-
+	
 	outputProcessing(true, 0);
 	outputCorrespondence();
 	return 0;
